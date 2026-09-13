@@ -31,7 +31,8 @@ button { color: inherit; }
 .site-header { height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; align-items: center; gap: .75rem; color: var(--ink); text-decoration: none; font-weight: 750; letter-spacing: -.02em; }
 .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--lime); color: #101510; font-size: .72rem; letter-spacing: -.04em; }
-.pill { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); padding: .42rem .75rem; font-size: .77rem; }
+.pill { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); padding: .42rem .75rem; font-size: .77rem; text-decoration: none; }
+.pill:hover, .pill:focus-visible { border-color: var(--accent); color: var(--text); }
 .hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .5fr); gap: 4rem; align-items: end; padding: 5.5rem 0 3.5rem; }
 .eyebrow, .section-heading > span { display: block; color: var(--lime); font-size: .72rem; font-weight: 800; letter-spacing: .15em; margin: 0 0 .8rem; }
 h1, h2, h3, p { margin-top: 0; }
@@ -55,6 +56,7 @@ input:focus { border-color: var(--lime-dark); box-shadow: 0 0 0 3px rgba(200,255
 .secret-field input { padding-right: 4.5rem; margin-bottom: .35rem; }
 .secret-field .icon-button { position: absolute; top: .43rem; right: .45rem; }
 .field-help { color: var(--faint); font-size: .78rem; line-height: 1.5; margin-bottom: 1rem; }
+.field-help-subtitle { color: var(--lime); font-size: .78rem; line-height: 1.5; margin-bottom: 1rem; }
 .button, .icon-button, .text-button, .segmented button { border: 0; cursor: pointer; transition: transform .15s ease, background .15s ease, border-color .15s ease, opacity .15s ease; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; min-height: 44px; padding: .7rem 1rem; border-radius: 10px; font-weight: 760; }
 .button:hover:not(:disabled) { transform: translateY(-1px); }

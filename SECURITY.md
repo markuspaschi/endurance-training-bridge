@@ -22,8 +22,9 @@ If private vulnerability reporting is not enabled, open a public issue containin
 - Rotate a secret immediately if it may have been exposed.
 - Restrict Firestore and Secret Manager access with least-privilege IAM.
 - Use HTTPS outside localhost.
-- Use a unique API key of at least 32 random bytes per deployment.
-- Do not share one deployment with untrusted users.
+- Use a unique admin API key of at least 32 random bytes per deployment.
+- Leave public registration disabled unless the deployment has rate limits, quotas, monitoring, a privacy notice, and a budget alert.
+- Never share a per-athlete private connection key. Use **Forget this browser** on shared devices because the website stores the key locally for automatic reconnection.
 - Avoid logging request headers, bodies, activity payloads, or Garmin tokens.
 
 ## Known upstream advisory

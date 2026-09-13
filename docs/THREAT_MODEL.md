@@ -2,7 +2,7 @@
 
 ## Scope and trust boundary
 
-The supported configuration is one trusted person or household per deployment. The browser UI, API, Firestore database, Google Cloud project, and local Garmin helper are controlled by that operator.
+The browser UI and API can be self-hosted for one trusted household or configured as a small community service. The Google Cloud project and Firestore database remain controlled by the operator. Each Garmin athlete has a separate private connection key.
 
 The following are outside the trust boundary:
 
@@ -15,7 +15,7 @@ The following are outside the trust boundary:
 
 - Garmin email, password, and MFA code
 - Garmin access and refresh tokens
-- server API key
+- operator API key and per-athlete private connection keys
 - activity, health, and location data
 - Strava credentials and tokens when the legacy connector is enabled
 
@@ -23,20 +23,18 @@ The following are outside the trust boundary:
 
 | Threat | Current control | Residual risk |
 | --- | --- | --- |
-| Unauthorized API use | Bearer key on all private routes; constant-time comparison; minimum key length | A leaked key grants access to every athlete in the deployment |
+| Unauthorized API use | Random per-athlete bearer keys; only SHA-256 hashes stored; constant-time comparison; admin fallback | A leaked athlete key grants access to that athlete; a leaked admin key grants access to all athletes |
 | Cross-origin browser calls | Exact `CORS_ALLOWED_ORIGINS` allow-list | CORS is not authentication and does not protect non-browser clients |
 | Garmin credential theft | Credentials entered only in a local, password-masked helper | The unofficial Python dependency and the local machine must be trusted |
 | Token disclosure in the UI | UI never accepts or stores Garmin tokens | Firestore operators and compromised server runtimes can read tokens |
 | CSRF/OAuth state tampering | Short-lived HMAC-signed Strava state and redirect allow-list | The optional legacy Strava path has less test coverage |
 | Stored data after disconnect | Token and activity-cache deletion endpoint | Cloud logs and backups follow operator retention settings |
 | Dependency compromise | Lock file, CI, Dependabot configuration | Python transitive dependencies are not fully locked |
-| Denial of service or cost abuse | Auth before private work; request-size limit | No distributed rate limiter; operators should use platform quotas or an API gateway |
+| Denial of service or cost abuse | Auth before data reads; request-size limit; public registration off by default | Registration must contact Garmin before a new key can be stored; no distributed rate limiter exists, so public operators need gateway/platform controls |
 
-## Unsupported multi-tenant use
+## Public-service limits
 
-The shared `MCP_API_KEY` is an operator credential, not a user identity. Athlete IDs are selectors, not authorization boundaries. Do not use this version as a shared hosted service for unrelated people.
-
-A future multi-tenant service requires, at minimum:
+Per-athlete keys provide basic data separation for a small community deployment. They are long-lived bearer credentials, not full user accounts, and recovery is intentionally impossible if a key is lost. A production or commercial multi-tenant service still requires, at minimum:
 
 - user authentication with short-lived sessions;
 - server-derived ownership mapping for every athlete and cache object;

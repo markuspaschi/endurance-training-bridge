@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "functions-framework --target=mcpHandler --port=8080",
+    "prepare:hosting": "node scripts/prepare-hosting.mjs",
     "check": "node --check src/index.js && node --check src/security.js && node --check src/mcpRouter.js && node --check src/garmin/client.js && node --check web/app.js",
     "test": "node --test",
     "deploy": "gcloud functions deploy endurance-training-bridge --gen2 --runtime=nodejs22 --trigger-http --allow-unauthenticated --entry-point=mcpHandler --source=. --region=us-central1"

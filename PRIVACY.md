@@ -16,7 +16,8 @@ Garmin credentials and MFA codes are entered into the local helper. The helper s
 
 - Garmin session tokens remain in the operator's Firestore database until disconnect or manual deletion.
 - Activity cache entries expire after 15 minutes and are also removed by the disconnect endpoint.
-- The browser keeps the server API key in memory only. The API URL and athlete ID use session storage and are removed when the browser session ends.
+- The browser stores the private connection key and athlete ID in local storage so the connection can be restored on later visits. They remain on that browser profile until the user chooses **Forget this browser**, clears site data, or deletes the server data.
+- The server stores a one-way SHA-256 hash of each generated private connection key alongside that athlete's Garmin session.
 
 Firestore and the hosting platform may retain backups or logs according to the operator's cloud configuration. Operators should document those settings and avoid request-body logging.
 

@@ -6,6 +6,8 @@ __pycache__/
 .firebase/
 .claude/
 web/strava_swim_bike_run.jpeg
+# Generated from scripts/garmin-mcp-tokens.py before serving/deploying Hosting.
+web/garmin-pair.py
 
 # Environment files
 .env

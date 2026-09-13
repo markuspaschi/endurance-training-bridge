@@ -262,15 +262,22 @@ export async function clearAthleteCache(athleteId) {
  * @param {object} tokens.tokens - DI tokens ({ di_token, di_refresh_token, di_client_id })
  * @param {string} [tokens.athlete_name] - Optional display name
  */
-export async function storeGarminTokens(athleteId, tokens) {
+export async function storeGarminTokens(athleteId, tokens, options = {}) {
   const db = getFirestore();
   const docRef = db.collection('garmin_athletes').doc(String(athleteId));
 
-  await docRef.set({
+  const data = {
     tokens: tokens.tokens,
     athlete_name: tokens.athlete_name || null,
     updated_at: FieldValue.serverTimestamp()
-  }, { merge: true });
+  };
+  if (options.accessKeyHash) data.access_key_hash = options.accessKeyHash;
+
+  if (options.createOnly) {
+    await docRef.create(data);
+  } else {
+    await docRef.set(data, { merge: true });
+  }
 }
 
 /**
@@ -289,6 +296,22 @@ export async function getGarminTokens(athleteId) {
   }
 
   return doc.data();
+}
+
+/**
+ * Resolve a Garmin connection from a hashed private connection key.
+ * The high-entropy plaintext key is never stored.
+ */
+export async function findGarminAthleteByAccessKeyHash(accessKeyHash) {
+  const db = getFirestore();
+  const snapshot = await db.collection('garmin_athletes')
+    .where('access_key_hash', '==', accessKeyHash)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  return { athleteId: doc.id, connection: doc.data() };
 }
 
 /**

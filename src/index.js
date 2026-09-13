@@ -19,11 +19,20 @@ import crypto from 'node:crypto';
 import { routeTool, listTools } from './mcpRouter.js';
 import { exchangeAuthCode, getAuthorizationUrl } from './strava/client.js';
 import { createGarminClientFromTokens } from './garmin/client.js';
-import { storeGarminTokens, getGarminTokens, clearGarminAthleteCache } from './storage/firestore.js';
+import {
+  storeGarminTokens,
+  getGarminTokens,
+  findGarminAthleteByAccessKeyHash,
+  clearGarminAthleteCache
+} from './storage/firestore.js';
 import {
   allowedOrigins,
   createSignedState,
+  getBearerToken,
+  hashAccessKey,
   isOriginAllowed,
+  isStrongAccessKey,
+  validateAccessKey,
   validateApiKey,
   validateAthleteId,
   validateRedirectUrl,
@@ -84,6 +93,14 @@ async function handleMcpRequest(req, res) {
   // Determine status code based on result
   const statusCode = result.error ? 400 : 200;
   sendJson(res, statusCode, result);
+}
+
+async function authorizeGarminAthlete(req, athleteId) {
+  if (validateApiKey(req.headers.authorization)) return true;
+  const accessKey = getBearerToken(req.headers.authorization);
+  if (!isStrongAccessKey(accessKey)) return false;
+  const connection = await getGarminTokens(athleteId);
+  return validateAccessKey(accessKey, connection?.access_key_hash);
 }
 
 /**
@@ -225,14 +242,36 @@ async function handleGarminTokens(req, res) {
     return;
   }
 
+  const accessKey = getBearerToken(req.headers.authorization);
+  const isAdmin = validateApiKey(req.headers.authorization);
+  if (!isAdmin && !isStrongAccessKey(accessKey)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    sendError(res, 401, 'A private connection key of at least 32 bytes is required');
+    return;
+  }
+
   try {
+    const existing = await getGarminTokens(athleteId);
+    if (existing?.access_key_hash && !isAdmin && !validateAccessKey(accessKey, existing.access_key_hash)) {
+      res.set('WWW-Authenticate', 'Bearer');
+      sendError(res, 401, 'This Garmin connection already exists. Use its original private connection key.');
+      return;
+    }
+    if (!existing && !isAdmin && process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+      sendError(res, 403, 'New Garmin connections are not enabled on this server');
+      return;
+    }
+
     const tokenData = { tokens, athlete_name: athleteName };
     const client = await createGarminClientFromTokens(tokens);
     await client.ensureValidToken();
 
     // Persist refreshed tokens if they changed
     tokenData.tokens = client.exportTokens();
-    await storeGarminTokens(athleteId, tokenData);
+    await storeGarminTokens(athleteId, tokenData, {
+      accessKeyHash: existing?.access_key_hash || (!isAdmin ? hashAccessKey(accessKey) : null),
+      createOnly: !existing
+    });
 
     sendJson(res, 200, {
       message: 'Garmin tokens stored successfully',
@@ -248,20 +287,30 @@ async function handleGarminTokens(req, res) {
  * Check whether a Garmin connection is healthy for an athlete.
  */
 async function handleGarminStatus(req, res) {
-  const { athleteId } = req.query || {};
+  let athleteId = String(req.query?.athleteId || '');
+  let tokens;
+  const accessKey = getBearerToken(req.headers.authorization);
 
-  if (!validateAthleteId(String(athleteId || ''))) {
-    sendError(res, 400, 'Valid athleteId query parameter is required');
+  if (athleteId) {
+    if (!validateAthleteId(athleteId) || !await authorizeGarminAthlete(req, athleteId)) {
+      res.set('WWW-Authenticate', 'Bearer');
+      sendError(res, 401, 'Invalid athlete ID or private connection key');
+      return;
+    }
+    tokens = await getGarminTokens(athleteId);
+  } else if (isStrongAccessKey(accessKey)) {
+    const match = await findGarminAthleteByAccessKeyHash(hashAccessKey(accessKey));
+    athleteId = match?.athleteId || '';
+    tokens = match?.connection;
+  }
+
+  if (!athleteId || !tokens) {
+    res.set('WWW-Authenticate', 'Bearer');
+    sendError(res, 401, 'No Garmin connection was found for this private connection key');
     return;
   }
 
   try {
-    const tokens = await getGarminTokens(athleteId);
-    if (!tokens) {
-      sendJson(res, 200, { connected: false, athleteId });
-      return;
-    }
-
     const client = await createGarminClientFromTokens(tokens);
     const profile = await client.getUserProfile();
 
@@ -284,6 +333,12 @@ async function handleGarminDisconnect(req, res) {
 
   if (!validateAthleteId(String(athleteId || ''))) {
     sendError(res, 400, 'athleteId is required');
+    return;
+  }
+
+  if (!await authorizeGarminAthlete(req, athleteId)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    sendError(res, 401, 'Invalid athlete ID or private connection key');
     return;
   }
 
@@ -324,12 +379,13 @@ async function mcpHandler(req, res) {
   }
 
   // Parse path from the URL
-  const path = req.path || '/';
+  const rawPath = req.path || '/';
+  const path = rawPath.startsWith('/api/') ? rawPath.slice(4) : rawPath;
   if (path.startsWith('/auth/strava/') && process.env.ENABLE_STRAVA !== 'true') {
     sendError(res, 404, 'Strava integration is disabled');
     return;
   }
-  const protectedRoute = path === '/mcp' || path === '/auth/strava/init' || path.startsWith('/auth/garmin/');
+  const adminRoute = path === '/auth/strava/init';
 
   const contentLength = Number(req.headers['content-length'] || 0);
   let parsedBodyLength = 0;
@@ -344,7 +400,7 @@ async function mcpHandler(req, res) {
     return;
   }
 
-  if (protectedRoute && !validateApiKey(req.headers.authorization)) {
+  if (adminRoute && !validateApiKey(req.headers.authorization)) {
     res.set('WWW-Authenticate', 'Bearer');
     sendError(res, 401, 'Unauthorized - invalid or missing API key');
     return;
@@ -353,6 +409,16 @@ async function mcpHandler(req, res) {
   try {
     // Route based on path and method
     if (req.method === 'POST' && path === '/mcp') {
+      const athleteId = String(req.body?.arguments?.athleteId || '');
+      const source = req.body?.arguments?.source;
+      const authorized = source === 'garmin'
+        ? validateAthleteId(athleteId) && await authorizeGarminAthlete(req, athleteId)
+        : validateApiKey(req.headers.authorization);
+      if (!authorized) {
+        res.set('WWW-Authenticate', 'Bearer');
+        sendError(res, 401, 'Invalid athlete ID or private connection key');
+        return;
+      }
       await handleMcpRequest(req, res);
     } else if (req.method === 'GET' && path === '/auth/strava/callback') {
       await handleStravaCallback(req, res);

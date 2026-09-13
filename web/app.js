@@ -10,17 +10,20 @@ const state = {
 const elements = {};
 const byId = id => document.getElementById(id);
 
-function normalizeApiUrl(value) {
-  try {
-    const url = new URL(value.trim());
-    const localHttp = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
-    if (url.protocol !== 'https:' && !localHttp) return null;
-    url.hash = '';
-    url.search = '';
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return null;
+function generateAccessKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const encoded = btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/, '');
+  return `etb_${encoded}`;
+}
+
+function getApiUrl() {
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port === '8081') {
+    return 'http://localhost:8080';
   }
+  return `${window.location.origin}/api`;
 }
 
 function setStatus(element, message, status = 'idle') {
@@ -29,14 +32,11 @@ function setStatus(element, message, status = 'idle') {
 }
 
 function readConnectionFields() {
-  const apiUrl = normalizeApiUrl(elements.apiUrl.value);
   const apiKey = elements.apiKey.value.trim();
-  if (!apiUrl) throw new Error('Enter an HTTPS server URL (or localhost for development).');
-  if (!apiKey) throw new Error('Enter your server API key.');
-  state.apiUrl = apiUrl;
+  if (!apiKey) throw new Error('Enter your private connection key.');
+  state.apiUrl = getApiUrl();
   state.apiKey = apiKey;
-  sessionStorage.setItem('enduranceMcpApiUrl', apiUrl);
-  updateHelperCommand();
+  localStorage.setItem('enduranceMcpAccessKey', apiKey);
 }
 
 async function apiRequest(path, options = {}) {
@@ -64,29 +64,17 @@ async function apiRequest(path, options = {}) {
 }
 
 function updateHelperCommand() {
-  const apiUrl = normalizeApiUrl(elements.apiUrl.value);
-  elements.helperCommand.textContent = apiUrl
-    ? `python scripts/garmin-mcp-tokens.py --upload-url ${apiUrl}/auth/garmin/tokens`
-    : 'Enter a valid server URL to generate the command.';
-}
-
-async function testServer() {
-  setStatus(elements.serverStatus, 'Checking server…');
-  try {
-    readConnectionFields();
-    const response = await fetch(`${state.apiUrl}/health`, { headers: { Accept: 'application/json' } });
-    const body = await response.json();
-    if (!response.ok || body.status !== 'healthy') throw new Error('Health check did not report healthy.');
-    setStatus(elements.serverStatus, 'Server is healthy. API key will be verified when you connect.', 'success');
-  } catch (error) {
-    setStatus(elements.serverStatus, error.message, 'error');
-  }
+  const scriptUrl = `${window.location.origin}/garmin-pair.py`;
+  const uploadUrl = `${getApiUrl()}/auth/garmin/tokens`;
+  elements.helperCommand.textContent = navigator.userAgent.includes('Windows')
+    ? `curl.exe -fsSLo garmin-pair.py ${scriptUrl}; py garmin-pair.py --upload-url ${uploadUrl}`
+    : `curl -fsSLo garmin-pair.py ${scriptUrl} && python3 garmin-pair.py --upload-url ${uploadUrl}`;
 }
 
 function showConnected(name, athleteId) {
   state.athleteName = name || 'Garmin athlete';
   state.athleteId = athleteId;
-  sessionStorage.setItem('enduranceMcpAthleteId', athleteId);
+  localStorage.setItem('enduranceMcpAthleteId', athleteId);
   elements.athleteName.textContent = state.athleteName;
   elements.athleteMeta.textContent = `Garmin Connect · ${athleteId}`;
   elements.athleteCard.classList.remove('hidden');
@@ -100,8 +88,12 @@ function forgetLocalConnection() {
   state.athleteId = '';
   state.athleteName = '';
   state.trainingData = null;
-  sessionStorage.removeItem('enduranceMcpAthleteId');
-  elements.athleteId.value = '';
+  localStorage.removeItem('enduranceMcpAthleteId');
+  localStorage.removeItem('enduranceMcpAccessKey');
+  const replacementKey = generateAccessKey();
+  state.apiKey = replacementKey;
+  elements.apiKey.value = replacementKey;
+  localStorage.setItem('enduranceMcpAccessKey', replacementKey);
   elements.athleteCard.classList.add('hidden');
   elements.connectionBadge.dataset.state = 'idle';
   elements.connectionBadge.querySelector('b').textContent = 'Not connected';
@@ -112,19 +104,16 @@ function forgetLocalConnection() {
 }
 
 async function connect(event) {
-  event.preventDefault();
-  const athleteId = elements.athleteId.value.trim();
-  if (!/^[A-Za-z0-9._@+-]{1,128}$/.test(athleteId)) {
-    setStatus(elements.serverStatus, 'Enter the athlete ID shown by the helper.', 'error');
-    return;
-  }
+  event?.preventDefault();
+  const athleteId = state.athleteId || localStorage.getItem('enduranceMcpAthleteId') || '';
 
   elements.connectButton.disabled = true;
   setStatus(elements.serverStatus, 'Verifying Garmin connection…');
   try {
-    const body = await apiRequest(`/auth/garmin/status?athleteId=${encodeURIComponent(athleteId)}`);
+    const query = athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : '';
+    const body = await apiRequest(`/auth/garmin/status${query}`);
     if (!body.connected) throw new Error(body.error || 'No valid Garmin session is stored for this athlete.');
-    showConnected(body.athleteName, athleteId);
+    showConnected(body.athleteName, body.athleteId);
     setStatus(elements.serverStatus, 'Garmin connection verified.', 'success');
   } catch (error) {
     setStatus(elements.serverStatus, error.message, 'error');
@@ -271,7 +260,7 @@ async function copyText(text, button, confirmation) {
 
 function initialize() {
   Object.assign(elements, {
-    apiUrl: byId('api-url'), apiKey: byId('api-key'), athleteId: byId('athlete-id'),
+    apiKey: byId('api-key'),
     helperCommand: byId('helper-command'), serverStatus: byId('server-status'),
     analysisStatus: byId('analysis-status'), connectionBadge: byId('connection-badge'),
     athleteCard: byId('athlete-card'), athleteName: byId('athlete-name'), athleteMeta: byId('athlete-meta'),
@@ -281,25 +270,31 @@ function initialize() {
     result: byId('result'), summaryStats: byId('summary-stats'), promptOutput: byId('prompt-output')
   });
 
-  elements.apiUrl.value = sessionStorage.getItem('enduranceMcpApiUrl') || '';
-  elements.athleteId.value = sessionStorage.getItem('enduranceMcpAthleteId') || '';
+  const savedKey = localStorage.getItem('enduranceMcpAccessKey');
+  elements.apiKey.value = savedKey || generateAccessKey();
+  localStorage.setItem('enduranceMcpAccessKey', elements.apiKey.value);
+  state.athleteId = localStorage.getItem('enduranceMcpAthleteId') || '';
   updateHelperCommand();
 
   byId('connection-form').addEventListener('submit', connect);
-  byId('test-server').addEventListener('click', testServer);
+  byId('copy-key').addEventListener('click', event => copyText(elements.apiKey.value, event.currentTarget, 'Copied'));
   byId('toggle-key').addEventListener('click', event => {
     const showing = elements.apiKey.type === 'text';
     elements.apiKey.type = showing ? 'password' : 'text';
     event.currentTarget.textContent = showing ? 'Show' : 'Hide';
     event.currentTarget.setAttribute('aria-label', showing ? 'Show API key' : 'Hide API key');
   });
-  elements.apiUrl.addEventListener('input', updateHelperCommand);
   elements.periodOptions.addEventListener('click', selectPeriod);
   elements.fetchButton.addEventListener('click', fetchTrainingData);
   elements.deleteButton.addEventListener('click', deleteServerData);
   byId('forget-button').addEventListener('click', forgetLocalConnection);
-  byId('copy-command').addEventListener('click', event => copyText(elements.helperCommand.textContent, event.currentTarget, 'Copied'));
+  byId('copy-command').addEventListener('click', async event => {
+    await copyText(elements.helperCommand.textContent, event.currentTarget, 'Copied');
+    setStatus(elements.serverStatus, 'Command copied. Run it in Terminal, complete Garmin login, then return here.', 'success');
+  });
   byId('copy-prompt').addEventListener('click', event => copyText(elements.promptOutput.textContent, event.currentTarget, 'Copied'));
+
+  if (state.athleteId && savedKey) connect();
 }
 
 document.addEventListener('DOMContentLoaded', initialize);

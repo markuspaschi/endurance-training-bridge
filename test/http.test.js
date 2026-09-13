@@ -51,6 +51,19 @@ test('health reports a securely configured service', async () => {
   }
 });
 
+test('Firebase Hosting API prefix routes to the same handler', async () => {
+  const previous = process.env.MCP_API_KEY;
+  process.env.MCP_API_KEY = 'h'.repeat(64);
+  try {
+    const response = await invoke(request('GET', '/api/health'));
+    assert.equal(response.status, 200);
+    assert.equal(JSON.parse(response.body).status, 'healthy');
+  } finally {
+    if (previous === undefined) delete process.env.MCP_API_KEY;
+    else process.env.MCP_API_KEY = previous;
+  }
+});
+
 test('private Garmin routes reject missing authentication before storage access', async () => {
   const previous = process.env.MCP_API_KEY;
   process.env.MCP_API_KEY = 'h'.repeat(64);

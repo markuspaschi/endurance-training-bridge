@@ -20,6 +20,24 @@ export function validateApiKey(authHeader, configuredKey = process.env.MCP_API_K
   return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
 }
 
+export function isStrongAccessKey(value) {
+  return typeof value === 'string' && /^etb_[A-Za-z0-9_-]{43}$/.test(value);
+}
+
+export function hashAccessKey(value) {
+  if (!isStrongAccessKey(value)) return null;
+  return crypto.createHash('sha256').update(value, 'utf8').digest('base64url');
+}
+
+export function validateAccessKey(value, expectedHash) {
+  const actualHash = hashAccessKey(value);
+  if (!actualHash || typeof expectedHash !== 'string') return false;
+
+  const actual = Buffer.from(actualHash, 'utf8');
+  const expected = Buffer.from(expectedHash, 'utf8');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
 export function validateAthleteId(value) {
   return typeof value === 'string' && SAFE_ATHLETE_ID.test(value);
 }

@@ -19,3 +19,8 @@ test('static UI does not embed deployment credentials or endpoints', async () =>
   assert.doesNotMatch(source, /https:\/\/[^\s"'`]+\.run\.app/i);
   assert.doesNotMatch(source, /cloudfunctions\.net/i);
 });
+
+test('static UI links to the public source repository', async () => {
+  const html = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
+  assert.match(html, /https:\/\/github\.com\/markuspaschi\/endurance-training-bridge/);
+});

@@ -1,5 +1,9 @@
 {
   "hosting": {
+    "target": "app",
+    "predeploy": [
+      "npm run prepare:hosting"
+    ],
     "public": "web",
     "ignore": [
       "firebase.json",
@@ -7,6 +11,13 @@
       "**/node_modules/**"
     ],
     "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "functionId": "endurance-training-bridge",
+          "region": "us-central1"
+        }
+      },
       {
         "source": "**",
         "destination": "/index.html"

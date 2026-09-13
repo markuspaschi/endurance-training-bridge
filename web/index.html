@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A privacy-first, self-hosted bridge from Garmin Connect training data to AI coaching tools.">
+  <meta name="description" content="A privacy-minded bridge from Garmin Connect training data to AI coaching tools.">
   <meta name="color-scheme" content="dark light">
   <title>Endurance Training Bridge</title>
   <link rel="stylesheet" href="styles.css">
@@ -19,15 +19,15 @@
       <span class="brand-mark" aria-hidden="true">EB</span>
       <span>Endurance Bridge</span>
     </a>
-    <span class="pill">Open source · Self-hosted</span>
+    <a class="pill" href="https://github.com/markuspaschi/endurance-training-bridge" target="_blank" rel="noopener noreferrer">Open source · GitHub</a>
   </header>
 
   <main id="main">
     <section class="hero">
       <div>
-        <p class="eyebrow">YOUR TRAINING DATA, YOUR INFRASTRUCTURE</p>
+        <p class="eyebrow">YOUR TRAINING DATA, YOUR CONTROL</p>
         <h1>Turn Garmin activities into useful coaching context.</h1>
-        <p class="lede">Connect a server you control, review your recent training, and create a structured prompt for the AI coach of your choice.</p>
+        <p class="lede">Connect your Garmin account, review your recent training, and create a structured prompt for the AI coach of your choice.</p>
       </div>
       <div class="sport-track" aria-label="Swim, bike, run">
         <span><b>01</b> Swim</span>
@@ -47,38 +47,37 @@
     <div class="workspace">
       <aside class="setup-panel" aria-labelledby="setup-heading">
         <div class="section-heading">
-          <span>SETUP</span>
-          <h2 id="setup-heading">Connect your server</h2>
+          <span>CONNECT</span>
+          <h2 id="setup-heading">Connect Garmin</h2>
         </div>
 
         <form id="connection-form">
-          <label for="api-url">Server URL</label>
-          <input id="api-url" name="api-url" type="url" inputmode="url" autocomplete="url" placeholder="https://your-service.example.com" required>
-
-          <label for="api-key">Server API key</label>
+          <div class="step-label"><span>1</span>Save your private key</div>
+          <label for="api-key">Private connection key</label>
           <div class="secret-field">
-            <input id="api-key" name="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Stored in memory only" required>
+            <input id="api-key" name="api-key" type="password" autocomplete="off" spellcheck="false" required>
             <button id="toggle-key" class="icon-button" type="button" aria-label="Show API key">Show</button>
           </div>
-          <p class="field-help">The key is never saved to browser storage.</p>
-
-          <button id="test-server" class="button button-secondary" type="button">Test server</button>
-          <output id="server-status" class="status" aria-live="polite"></output>
+          <p class="field-help">Generated automatically and saved in this browser. Copy it now—you will paste it into the pairing helper.</p>
+          <p class="field-help-subtitle">Enter the same key on your phone to easily authenticate!</p>
+          <button id="copy-key" class="button button-secondary" type="button">Copy pairing key</button>
 
           <div class="divider"></div>
 
-          <div class="step-label"><span>1</span>Authenticate locally</div>
-          <p class="field-help">Run the helper from your cloned repository. Your Garmin password stays in your terminal and is never sent to this web page.</p>
+          <div class="step-label"><span>2</span>Run the pairing helper</div>
+          <p class="field-help">Open Terminal, paste the command below, and press Enter. It downloads the readable helper from GitHub, runs it in a disposable Python environment, and removes that environment afterward.</p>
           <div class="command-wrap">
-            <code id="helper-command">Enter a valid server URL to generate the command.</code>
+            <code id="helper-command"></code>
             <button id="copy-command" class="icon-button" type="button">Copy</button>
           </div>
+          <p class="field-help">When asked, paste your private key, then enter your Garmin email, password, and MFA code. Credentials go directly from the helper to Garmin—not through this website.</p>
 
-          <div class="step-label"><span>2</span>Verify your connection</div>
-          <label for="athlete-id">Garmin athlete ID</label>
-          <input id="athlete-id" name="athlete-id" type="text" autocomplete="off" spellcheck="false" maxlength="128" placeholder="Shown after helper upload" required>
+          <div class="divider"></div>
 
-          <button id="connect-button" class="button button-primary" type="submit">Verify connection</button>
+          <div class="step-label"><span>3</span>Finish connecting</div>
+          <p class="field-help">Wait for “Pairing complete” in Terminal, then return here. Your athlete ID is detected automatically.</p>
+          <button id="connect-button" class="button button-primary" type="submit">I've paired Garmin — connect</button>
+          <output id="server-status" class="status" aria-live="polite"></output>
         </form>
       </aside>
 
@@ -99,7 +98,7 @@
             <b id="athlete-name">Garmin athlete</b>
             <span id="athlete-meta"></span>
           </div>
-          <button id="forget-button" class="text-button" type="button">Forget locally</button>
+          <button id="forget-button" class="text-button" type="button">Forget this browser</button>
         </div>
 
         <fieldset>
@@ -116,9 +115,9 @@
           <legend>Prompt detail</legend>
           <div class="check-grid">
             <label><input id="include-sessions" type="checkbox" checked> Session details</label>
-            <label><input id="include-coaching" type="checkbox" checked> Coaching brief</label>
-            <label><input id="include-hr" type="checkbox"> Heart-rate samples</label>
-            <label><input id="include-speed" type="checkbox"> Speed samples</label>
+            <label><input id="include-coaching" type="checkbox"> Coaching brief</label>
+            <label><input id="include-hr" type="checkbox" checked> Heart-rate samples</label>
+            <label><input id="include-speed" type="checkbox" checked> Speed samples</label>
           </div>
         </fieldset>
 
@@ -151,7 +150,7 @@
   </main>
 
   <footer>
-    <p>Privacy-first by deployment, not by promise. Review your configuration before exposing a server to the internet.</p>
+    <p>Your private connection key stays in this browser. Review training data before sharing it.</p>
     <p>Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.</p>
   </footer>
 </body>

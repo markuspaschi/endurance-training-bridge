@@ -4,7 +4,10 @@ import assert from 'node:assert/strict';
 import {
   createSignedState,
   getBearerToken,
+  hashAccessKey,
+  isStrongAccessKey,
   isOriginAllowed,
+  validateAccessKey,
   validateApiKey,
   validateAthleteId,
   validateRedirectUrl,
@@ -19,6 +22,16 @@ test('bearer authentication requires an exact strong key', () => {
   assert.equal(validateApiKey(`Bearer ${TEST_KEY}`, TEST_KEY), true);
   assert.equal(validateApiKey(`Bearer ${'b'.repeat(64)}`, TEST_KEY), false);
   assert.equal(validateApiKey('Bearer short', 'short'), false);
+});
+
+test('personal connection keys use a distinct high-entropy format', () => {
+  const key = `etb_${'a'.repeat(43)}`;
+  const hash = hashAccessKey(key);
+  assert.equal(isStrongAccessKey(key), true);
+  assert.equal(isStrongAccessKey('a'.repeat(47)), false);
+  assert.equal(isStrongAccessKey('etb_short'), false);
+  assert.equal(validateAccessKey(key, hash), true);
+  assert.equal(validateAccessKey(`etb_${'b'.repeat(43)}`, hash), false);
 });
 
 test('athlete identifiers reject path traversal and oversized input', () => {

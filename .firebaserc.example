@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "your-google-cloud-project-id"
+  },
+  "targets": {
+    "your-google-cloud-project-id": {
+      "hosting": {
+        "app": [
+          "your-firebase-hosting-site-id"
+        ]
+      }
+    }
   }
 }
