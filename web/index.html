@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A privacy-first, self-hosted bridge from Garmin Connect training data to AI coaching tools.">
+  <meta name="color-scheme" content="dark light">
+  <title>Endurance Training Bridge</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="Endurance Training Bridge home">
+      <span class="brand-mark" aria-hidden="true">EB</span>
+      <span>Endurance Bridge</span>
+    </a>
+    <span class="pill">Open source · Self-hosted</span>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">YOUR TRAINING DATA, YOUR INFRASTRUCTURE</p>
+        <h1>Turn Garmin activities into useful coaching context.</h1>
+        <p class="lede">Connect a server you control, review your recent training, and create a structured prompt for the AI coach of your choice.</p>
+      </div>
+      <div class="sport-track" aria-label="Swim, bike, run">
+        <span><b>01</b> Swim</span>
+        <span><b>02</b> Bike</span>
+        <span><b>03</b> Run</span>
+      </div>
+    </section>
+
+    <section class="notice" aria-labelledby="connector-notice">
+      <div class="notice-icon" aria-hidden="true">!</div>
+      <div>
+        <h2 id="connector-notice">Community connector</h2>
+        <p>This project currently uses an unofficial Garmin Connect client. It is not affiliated with or endorsed by Garmin. Use it only with your own account. A broadly hosted product should use the official Garmin Connect Developer Program.</p>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <aside class="setup-panel" aria-labelledby="setup-heading">
+        <div class="section-heading">
+          <span>SETUP</span>
+          <h2 id="setup-heading">Connect your server</h2>
+        </div>
+
+        <form id="connection-form">
+          <label for="api-url">Server URL</label>
+          <input id="api-url" name="api-url" type="url" inputmode="url" autocomplete="url" placeholder="https://your-service.example.com" required>
+
+          <label for="api-key">Server API key</label>
+          <div class="secret-field">
+            <input id="api-key" name="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Stored in memory only" required>
+            <button id="toggle-key" class="icon-button" type="button" aria-label="Show API key">Show</button>
+          </div>
+          <p class="field-help">The key is never saved to browser storage.</p>
+
+          <button id="test-server" class="button button-secondary" type="button">Test server</button>
+          <output id="server-status" class="status" aria-live="polite"></output>
+
+          <div class="divider"></div>
+
+          <div class="step-label"><span>1</span>Authenticate locally</div>
+          <p class="field-help">Run the helper from your cloned repository. Your Garmin password stays in your terminal and is never sent to this web page.</p>
+          <div class="command-wrap">
+            <code id="helper-command">Enter a valid server URL to generate the command.</code>
+            <button id="copy-command" class="icon-button" type="button">Copy</button>
+          </div>
+
+          <div class="step-label"><span>2</span>Verify your connection</div>
+          <label for="athlete-id">Garmin athlete ID</label>
+          <input id="athlete-id" name="athlete-id" type="text" autocomplete="off" spellcheck="false" maxlength="128" placeholder="Shown after helper upload" required>
+
+          <button id="connect-button" class="button button-primary" type="submit">Verify connection</button>
+        </form>
+      </aside>
+
+      <section class="analysis-panel" aria-labelledby="analysis-heading">
+        <div class="analysis-topline">
+          <div class="section-heading">
+            <span>ANALYSIS</span>
+            <h2 id="analysis-heading">Build coaching context</h2>
+          </div>
+          <div id="connection-badge" class="connection-badge" data-state="idle">
+            <span aria-hidden="true"></span><b>Not connected</b>
+          </div>
+        </div>
+
+        <div id="athlete-card" class="athlete-card hidden">
+          <div class="avatar" aria-hidden="true">A</div>
+          <div>
+            <b id="athlete-name">Garmin athlete</b>
+            <span id="athlete-meta"></span>
+          </div>
+          <button id="forget-button" class="text-button" type="button">Forget locally</button>
+        </div>
+
+        <fieldset>
+          <legend>Training window</legend>
+          <div class="segmented" id="period-options">
+            <button type="button" data-days="1">24 hours</button>
+            <button type="button" data-weeks="1">1 week</button>
+            <button type="button" data-weeks="2" class="active">2 weeks</button>
+            <button type="button" data-weeks="4">4 weeks</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Prompt detail</legend>
+          <div class="check-grid">
+            <label><input id="include-sessions" type="checkbox" checked> Session details</label>
+            <label><input id="include-coaching" type="checkbox" checked> Coaching brief</label>
+            <label><input id="include-hr" type="checkbox"> Heart-rate samples</label>
+            <label><input id="include-speed" type="checkbox"> Speed samples</label>
+          </div>
+        </fieldset>
+
+        <button id="fetch-button" class="button button-primary button-large" type="button" disabled>
+          <span>Generate training brief</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        <output id="analysis-status" class="status" aria-live="polite"></output>
+
+        <section id="result" class="result hidden" aria-labelledby="result-heading">
+          <div class="result-header">
+            <div>
+              <span class="eyebrow">READY TO USE</span>
+              <h3 id="result-heading">Your coaching prompt</h3>
+            </div>
+            <button id="copy-prompt" class="button button-secondary" type="button">Copy prompt</button>
+          </div>
+          <div id="summary-stats" class="summary-stats"></div>
+          <pre id="prompt-output" tabindex="0"></pre>
+          <p class="privacy-note">Review the prompt before sharing it. It may contain health, location, and workout data.</p>
+        </section>
+
+        <details class="danger-zone">
+          <summary>Data controls</summary>
+          <p>Disconnecting deletes the stored Garmin session and cached activities for this athlete from your server.</p>
+          <button id="delete-button" class="button button-danger" type="button" disabled>Delete server data</button>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>Privacy-first by deployment, not by promise. Review your configuration before exposing a server to the internet.</p>
+    <p>Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.</p>
+  </footer>
+</body>
+</html>
