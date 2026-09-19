@@ -23,6 +23,7 @@ import {
   storeGarminTokens,
   getGarminTokens,
   findGarminAthleteByAccessKeyHash,
+  updateGarminTokens,
   clearGarminAthleteCache
 } from './storage/firestore.js';
 import {
@@ -312,6 +313,13 @@ async function handleGarminStatus(req, res) {
 
   try {
     const client = await createGarminClientFromTokens(tokens);
+    // `createGarminClientFromTokens` refreshes an expiring DI token in memory.
+    // Persist the refreshed token pair here as well; otherwise a tab reopened
+    // after a few days can repeatedly retry the same stale token/refresh pair.
+    const refreshedTokens = client.exportTokens();
+    if (JSON.stringify(tokens.tokens) !== JSON.stringify(refreshedTokens)) {
+      await updateGarminTokens(athleteId, refreshedTokens);
+    }
     const profile = await client.getUserProfile();
 
     sendJson(res, 200, {
@@ -321,7 +329,8 @@ async function handleGarminStatus(req, res) {
     });
   } catch (err) {
     console.error('Garmin status error:', err);
-    sendJson(res, 200, { connected: false, athleteId, error: 'Garmin authentication failed' });
+    res.set('WWW-Authenticate', 'Bearer');
+    sendError(res, 401, 'Garmin authentication failed. Re-run pairing if the Garmin session has expired.');
   }
 }
 

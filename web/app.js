@@ -43,6 +43,7 @@ async function apiRequest(path, options = {}) {
   readConnectionFields();
   const response = await fetch(`${state.apiUrl}${path}`, {
     ...options,
+    cache: 'no-store',
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${state.apiKey}`,
@@ -58,7 +59,11 @@ async function apiRequest(path, options = {}) {
     throw new Error(`Server returned ${response.status} without a JSON response.`);
   }
   if (!response.ok || body.error) {
-    throw new Error(body.error?.message || `Request failed (${response.status}).`);
+    const serverError = body?.error;
+    const message = typeof serverError === 'string'
+      ? serverError
+      : serverError?.message || body?.message;
+    throw new Error(message || `Request failed (${response.status}).`);
   }
   return body;
 }
@@ -105,13 +110,14 @@ function forgetLocalConnection() {
 
 async function connect(event) {
   event?.preventDefault();
-  const athleteId = state.athleteId || localStorage.getItem('enduranceMcpAthleteId') || '';
 
   elements.connectButton.disabled = true;
   setStatus(elements.serverStatus, 'Verifying Garmin connection…');
   try {
-    const query = athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : '';
-    const body = await apiRequest(`/auth/garmin/status${query}`);
+    // Resolve the athlete from the private key. The locally saved athlete ID
+    // is only a display/cache hint and may be stale after a reconnect or key
+    // change on another device.
+    const body = await apiRequest('/auth/garmin/status');
     if (!body.connected) throw new Error(body.error || 'No valid Garmin session is stored for this athlete.');
     showConnected(body.athleteName, body.athleteId);
     setStatus(elements.serverStatus, 'Garmin connection verified.', 'success');
@@ -133,6 +139,46 @@ function selectPeriod(event) {
 
 function formatNumber(value, suffix = '') {
   return `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}${suffix}`;
+}
+
+function formatDurationPerDistance(speedMetersPerSecond, distanceMeters) {
+  const speed = Number(speedMetersPerSecond);
+  if (!Number.isFinite(speed) || speed <= 0 || !Number.isFinite(distanceMeters)) return '—';
+
+  const totalSeconds = Math.round(distanceMeters / speed);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatSpeedSample(speedMetersPerSecond) {
+  const speed = Number(speedMetersPerSecond);
+  if (!Number.isFinite(speed) || speed < 0) return '—';
+  return (speed * 3.6).toFixed(1);
+}
+
+function formatMovementSamples(session) {
+  const speedSamples = session.samples?.speed;
+  if (!Array.isArray(speedSamples) || speedSamples.length === 0) return null;
+
+  if (session.discipline === 'run') {
+    return {
+      label: 'Pace samples (min/km)',
+      values: speedSamples.map(speed => formatDurationPerDistance(speed, 1000))
+    };
+  }
+
+  if (session.discipline === 'swim') {
+    return {
+      label: 'Pace samples (min/100 m)',
+      values: speedSamples.map(speed => formatDurationPerDistance(speed, 100))
+    };
+  }
+
+  return {
+    label: 'Speed samples (km/h)',
+    values: speedSamples.map(formatSpeedSample)
+  };
 }
 
 function buildPrompt(data) {
@@ -168,12 +214,15 @@ function buildPrompt(data) {
     sessions.forEach((session, index) => {
       lines.push(
         `${index + 1}. ${session.title || 'Untitled activity'} — ${(session.date || '').split('T')[0] || 'unknown date'}`,
-        `   ${session.discipline || session.type || 'Workout'} · ${formatNumber(session.duration_minutes, ' min')} · ${formatNumber(session.distance_km, ' km')} · intensity ${session.intensity || 'unknown'}`
+        `   ${session.discipline || session.type || 'Workout'} · ${formatNumber(session.duration_minutes, ' min')} · ${formatNumber(session.distance_km, ' km')}`
       );
       if (session.heart_rate?.average) lines.push(`   HR ${session.heart_rate.average} avg / ${session.heart_rate.max || '—'} max bpm`);
       if (session.average_watts) lines.push(`   Power ${session.average_watts} W avg`);
       if (elements.includeHr.checked && session.samples?.heart_rate) lines.push(`   HR samples: ${session.samples.heart_rate.join(', ')}`);
-      if (elements.includeSpeed.checked && session.samples?.speed) lines.push(`   Speed samples (m/s): ${session.samples.speed.join(', ')}`);
+      if (elements.includeSpeed.checked) {
+        const movementSamples = formatMovementSamples(session);
+        if (movementSamples) lines.push(`   ${movementSamples.label}: ${movementSamples.values.join(', ')}`);
+      }
     });
   }
 

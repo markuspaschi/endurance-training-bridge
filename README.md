@@ -10,6 +10,8 @@ A privacy-conscious, self-hosted bridge that reads your Garmin Connect activitie
 - **Personal/self-hosted:** one operator supplies a Google Cloud project, Firestore database, and server administration key.
 - **Community website:** set `ALLOW_PUBLIC_REGISTRATION=true`. The pairing helper creates a separate high-entropy connection key for each Garmin athlete. The server stores only its SHA-256 hash and checks it on every private Garmin request.
 
+For this repository, deploy with the private Google account `markuspaschi@gmail.com`, never the Spotify work account `markusp@spotify.com`. Use Firebase project `strava-mcp-server` and pass the project explicitly to deployment commands.
+
 Public registration increases abuse, cost, privacy, and compliance responsibilities. It is suitable for a small community experiment, not a commercial service. See [Threat model](docs/THREAT_MODEL.md).
 
 ## Features
